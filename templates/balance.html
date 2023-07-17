@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Balance</title>
+</head>
+<body>
+    <h1>Balance</h1>
+    <form action="/balance" method="post">
+        <label for="accno">Account Number:</label>
+        <input type="text" id="accno" name="accno" value="{{ accno }}" required><br><br>
+        <button type="submit">Check Balance</button>
+    </form>
+    <p>Your current balance is: {{ balance }}</p>
+</body>
+</html>

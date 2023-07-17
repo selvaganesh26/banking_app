@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Change PIN</title>
+</head>
+<body>
+    <h1>Change PIN</h1>
+    <form action="/pin_change" method="post">
+        <label for="accno">Account Number:</label>
+        <input type="text" id="accno" name="accno" value="{{ accno }}" required><br><br>
+        <label for="old_pin">Old PIN:</label>
+        <input type="password" id="old_pin" name="old_pin" required><br><br>
+        <label for="new_pin">New PIN:</label>
+        <input type="password" id="new_pin" name="new_pin" required><br><br>
+        <button type="submit">Change PIN</button>
+    </form>
+</body>
+</html>

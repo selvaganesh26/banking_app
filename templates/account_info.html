@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Account Information</title>
+</head>
+<body>
+    <h1>Account Information</h1>
+    <form action="/account_info" method="post">
+        <label for="accno">Account Number:</label>
+        <input type="text" id="accno" name="accno" value="{{ accno }}" required><br><br>
+        <button type="submit">submit</button>
+    <ul>
+        <li><strong>Name:</strong> {{ name }}</li>
+        <li><strong>Account Number:</strong> {{ account_no }}</li>
+        <li><strong>Account Type:</strong> {{ account_type }}</li>
+        <li><strong>Total Balance:</strong> {{ total_balance }}</li>
+        <li><strong>Branch:</strong> {{ branch }}</li>
+        <li><strong>Gmail:</strong> {{ gmail }}</li>
+    </ul>
+</body>
+</html>
