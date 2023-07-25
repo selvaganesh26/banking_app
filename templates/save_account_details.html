@@ -9,8 +9,14 @@
         <input type="hidden" name="accno" value="{{ accno }}">
         <label for="name">Name:</label>
         <input type="text" id="name" name="name" required><br><br>
+
         <label for="account_type">Account Type:</label>
-        <input type="text" id="account_type" name="account_type" required><br><br>
+        <select id="account_type" name="account_type" required>
+            <option value="Savings Account">Savings Account</option>
+            <option value="Salary Account">Salary Account</option>
+            <option value="DEMAT Account">DEMAT Account</option>
+        </select><br><br>
+
         <label for="branch">Branch:</label>
         <input type="text" id="branch" name="branch" required><br><br>
         <label for="gmail">Gmail:</label>

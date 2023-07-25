@@ -1,25 +1,31 @@
 from flask import Flask, render_template, request, redirect
-import json
+import hashlib
+import psycopg2
 app = Flask(__name__)
 app.debug = True
 
-# File path for storing the account data
-ACCOUNT_DATA_FILE = "account_data.json"
+# Database connection details
+host = "localhost"
+database = "postgres"
+user = "postgres"
+password = "9841Selva@9841"
+port = 5432
 
-# Load the account data from the JSON file
-def load_account_data():
-    try:
-        with open(ACCOUNT_DATA_FILE, "r") as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}
-# Save the account data to the JSON file
-def save_account_data():
-    with open(ACCOUNT_DATA_FILE, "w") as file:
-        json.dump(account_data, file)
+# Connect to the PostgreSQL database
+conn = psycopg2.connect(host=host, database=database, user=user, password=password, port=port)
+cursor = conn.cursor()
+# Define the table name
+table_name = "account"
 
-# Load the account data when the server starts
-account_data = load_account_data()
+def check_account_exist_in_db(accno):
+    cursor.execute("SELECT * FROM banking_app.{} WHERE account_no = %s".format(table_name), (accno,))
+    account_info = cursor.fetchone()
+    print(account_info)
+    return account_info
+def validate_pin(account_data, provided_pin):
+    hashed_provided_pin = hashlib.sha256(provided_pin.encode()).hexdigest()
+    return hashed_provided_pin == account_data[6]
+
 
 @app.route('/', methods=['GET'])
 def index():
@@ -32,16 +38,21 @@ def account():
 
         if len(accno) < 9 or len(accno) > 18:
             return render_template('error.html', message='Invalid account number. Account number should be between 9 and 18 digits.')
-
-        if accno in account_data:
+        try:
+        # Check if the account exists in the database
+            account_data = check_account_exist_in_db(accno)
+        except psycopg2.Error as e:
+            conn.rollback()
+            return render_template('error.html', message='Error fetching account')
+        if account_data:
             return redirect('/options')
         else:
-            # Account number is valid but not found in account_data
-            # Add the new account to account_data and ask for further details
+            # Account number is valid but not found in the database
+            # Redirect to the account details page
             return redirect(f'/save_account_details?accno={accno}')
     else:
         return render_template('error.html', message='Method Not Allowed')
-    
+
 @app.route('/save_account_details', methods=['GET', 'POST'])
 def save_account_details():
     accno = request.args.get('accno')
@@ -55,24 +66,25 @@ def save_account_details():
 
         if len(accno) < 9 or len(accno) > 18 or not accno.isdigit():
             return render_template('error.html', message='Invalid account number')
+        
+        # Hash the PIN before storing it in the database
+        hashed_pin = hashlib.sha256(pin.encode()).hexdigest()
+        # Create a new account in the database
+        try:
+            cursor.execute("""
+                INSERT INTO banking_app.{} (account_no, name, account_type, branch, gmail, pin, total_balance)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """.format(table_name), (accno, name, account_type, branch, gmail, hashed_pin, 10000))
+            conn.commit()
+            return render_template('success.html', message='Account details saved successfully')
+        except psycopg2.Error as e:
+            conn.rollback()
+            error_message = str(e)  # Convert the error to a string
+            print("Error creating account:", error_message)  # Print the error message for debugging
 
-        if accno in account_data:
-            return render_template('error.html', message='Account already exists')
+            return render_template('error.html', message='Error creating account')
 
-        # Add the new account to account_data dictionary
-        account_data[accno] = {
-            "name": name,
-            "account_no": accno,
-            "account_type": account_type,
-            "total_balance": 10000,
-            "branch": branch,
-            "gmail": gmail,
-            "pin": pin
-        }
-        save_account_data()
-        return render_template('success.html', message='Account details saved successfully')
-
-    return render_template('save_account_details.html',accno=accno)
+    return render_template('save_account_details.html', accno=accno)
 
 @app.route('/options', methods=['GET'])
 def options():
@@ -84,17 +96,25 @@ def withdraw():
         amount = int(request.form['amount'])
         accno = request.form['accno']
         pin = request.form['pin']  # Add the new PIN field
+        account_data = check_account_exist_in_db(accno)  #will have tuple matching that account_number
         if amount <= 0:
             return render_template('error.html', message='Invalid amount')
-        if accno not in account_data:
+        if not account_data:
             return render_template('error.html', message='Invalid account number')
-        if pin != account_data[accno]['pin']:  # Check the PIN
+        if not validate_pin(account_data, pin):  # Check the PIN
             return render_template('error.html', message='Invalid PIN')
-        if amount > account_data[accno]['total_balance']:
+        if amount > account_data[3]:
             return render_template('error.html', message='Insufficient balance')
         # Perform withdrawal logic here
-        account_data[accno]['total_balance'] -= amount
-        return render_template('success.html', message='Amount withdrawn successfully')
+        new_balance = account_data[3] - amount
+        try:
+            cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (new_balance, accno))
+            conn.commit()
+            return render_template('success.html', message='Amount withdrawn successfully')
+        except psycopg2.Error as e:
+            conn.rollback()
+            return render_template('error.html', message='Error in withdrawing amount')
+
     return render_template('withdraw.html')
 
 @app.route('/deposit', methods=['GET', 'POST'])
@@ -102,13 +122,23 @@ def deposit():
     if request.method == 'POST':
         amount = int(request.form['amount'])
         accno = request.form['accno']
+        pin = request.form['pin']
+        account_data = check_account_exist_in_db(accno)  #will have tuple matching that account_number
         if amount <= 0:
             return render_template('error.html', message='Invalid amount')
-        if accno not in account_data:
+        if not account_data:
             return render_template('error.html', message='Invalid account number')
-        # Perform deposit logic here
-        account_data[accno]['total_balance'] += amount
-        return render_template('success.html', message='Amount deposited successfully')
+        if not validate_pin(account_data, pin):  # Check the PIN
+            return render_template('error.html', message='Invalid PIN')
+        # Performed deposit logic here
+        new_balance = account_data[3] + amount
+        try:
+            cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (new_balance, accno))
+            conn.commit()
+            return render_template('success.html', message='Amount deposited successfully')
+        except psycopg2.Error as e:
+            conn.rollback()
+            return render_template('error.html', message='Error in depositing amount')
     return render_template('deposit.html')
 
 @app.route('/transfer', methods=['GET', 'POST'])
@@ -117,28 +147,44 @@ def transfer():
         account_no = request.form['account_no']
         amount = int(request.form['amount'])
         accno = request.form['accno']
-        if accno not in account_data:
+        pin = request.form['pin']
+        account_data = check_account_exist_in_db(accno)  #will have tuple matching that account_number
+        destination_account_data = check_account_exist_in_db(account_no)
+        if not account_data:
             return render_template('error.html', message='Invalid account number')
-        if account_no not in account_data:
+        if not destination_account_data:
             return render_template('error.html', message='Invalid destination account number')
         if amount <= 0:
             return render_template('error.html', message='Invalid amount')
-        if amount > account_data[accno]['total_balance']:
+        if amount > account_data[3]:
             return render_template('error.html', message='Insufficient balance')
+        if not validate_pin(account_data, pin):  # Check the PIN
+            return render_template('error.html', message='Invalid PIN')
         # Perform transfer logic here
-        account_data[accno]['total_balance'] -= amount
-        account_data[account_no]['total_balance'] += amount
-        return render_template('success.html', message='Amount transferred successfully')
+        debit_in_accno = account_data[3] - amount
+        credit_in_account_no = destination_account_data[3] + amount
+        try:
+            cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (debit_in_accno, accno))
+            cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (credit_in_account_no, account_no))
+            conn.commit()
+            return render_template('success.html', message='Amount transferred successfully')
+        except psycopg2.Error as e:
+            conn.rollback()
+            return render_template('error.html', message='Error in transferring amount')
     return render_template('transfer.html')
 
 @app.route('/balance', methods=['GET', 'POST'])
 def balance():
     if request.method == 'POST':
         accno = request.form['accno']
-        if accno not in account_data:
+        pin = request.form['pin']
+        account_data = check_account_exist_in_db(accno)  #will have tuple matching that account_number
+        if not account_data:
             return render_template('error.html', message='Invalid account number')
         # Get account balance
-        balance_amount = account_data[accno]['total_balance']
+        if not validate_pin(account_data,pin):
+            return render_template('error.html', message= 'Incorrect PIN')
+        balance_amount = account_data[3]
         return render_template('balance.html', accno=accno, balance=balance_amount)
     return render_template('balance.html')
 
@@ -148,34 +194,40 @@ def pin_change():
         old_pin = request.form['old_pin']
         new_pin = request.form['new_pin']
         accno = request.form['accno']
-        if accno not in account_data:
+        account_data = check_account_exist_in_db(accno)
+        if not account_data:
             return render_template('error.html', message='Invalid account number')
-        if old_pin != account_data[accno]['pin']:
+        if not validate_pin(account_data, old_pin):
             return render_template('error.html', message='Incorrect old PIN')
         if old_pin == new_pin:
             return render_template('error.html', message='Old and new PINs cannot be the same')
         if len(new_pin) != 4 or not new_pin.isdigit():
             return render_template('error.html', message='Invalid new PIN')
+        new_hashed_pin = hashlib.sha256(new_pin.encode()).hexdigest()
         # Update PIN in account data
-        account_data[accno]['pin'] = new_pin
-        return render_template('success.html', message='PIN changed successfully')
+        try:
+            cursor.execute("""UPDATE banking_app.{} SET pin = %s WHERE account_no = %s""".format(table_name), (new_hashed_pin, accno))
+            conn.commit()
+            return render_template('success.html', message='PIN changed successfully')
+        except psycopg2.Error as e:
+            conn.rollback()
+            return render_template('error.html', message='Error in changing the password')
     return render_template('pin_change.html')
 
 @app.route('/account_info', methods=['GET', 'POST'])
 def account_info():
     if request.method == 'POST':
         accno = request.form['accno']
-        account_info = account_data.get(accno)
-        
-        if not account_info:
+        account_data = check_account_exist_in_db(accno)
+        if not account_data:
             return render_template('error.html', message='Invalid account number')
         return render_template('account_info.html', 
-                               name=account_info['name'],
-                               account_no=account_info['account_no'],
-                               account_type=account_info['account_type'],
-                               total_balance=account_info['total_balance'],
-                               branch=account_info['branch'],
-                               gmail=account_info['gmail'])
+                               name=account_data[1],
+                               account_no=account_data[0],
+                               account_type=account_data[2],
+                               total_balance=account_data[3],
+                               branch=account_data[4],
+                               gmail=account_data[5])
     return render_template('account_info.html')
 
 @app.route('/exit', methods=['GET'])

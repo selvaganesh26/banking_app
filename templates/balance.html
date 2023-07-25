@@ -2,12 +2,28 @@
 <html>
 <head>
     <title>Balance</title>
+    <script>
+        function validateInput(event) {
+            var keyCode = event.keyCode || event.which;
+            var key = String.fromCharCode(keyCode);
+            var regex = /[0-9]/; // Only allow numeric input
+            var pinField = document.getElementById("pin");
+            
+            // Limit PIN input to 4 digits
+            if (pinField.value.length >= 4 || !regex.test(key)) {
+                event.preventDefault();
+                return false;
+            }
+        }
+    </script>
 </head>
 <body>
     <h1>Balance</h1>
     <form action="/balance" method="post">
         <label for="accno">Account Number:</label>
-        <input type="text" id="accno" name="accno" value="{{ accno }}" required><br><br>
+        <input type="text" id="accno" name="accno" onkeypress="return validateInput(event)" required><br><br>
+        <label for="pin">PIN:</label>
+        <input type="password" id="pin" name="pin" onkeypress="return validateInput(event)" required><br><br>
         <button type="submit">Check Balance</button>
     </form>
     <p>Your current balance is: {{ balance }}</p>

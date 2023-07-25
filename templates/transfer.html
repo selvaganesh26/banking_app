@@ -2,14 +2,30 @@
 <html>
 <head>
     <title>Transfer</title>
+    <script>
+        function validateInput(event) {
+            var keyCode = event.keyCode || event.which;
+            var key = String.fromCharCode(keyCode);
+            var regex = /[0-9]/; // Only allow numeric input
+            var pinField = document.getElementById("pin");
+            
+            // Limit PIN input to 4 digits
+            if (pinField.value.length >= 4 || !regex.test(key)) {
+                event.preventDefault();
+                return false;
+            }
+        }
+    </script>
 </head>
 <body>
     <h1>Transfer</h1>
     <form action="/transfer" method="post">
         <label for="accno">Account Number:</label>
-        <input type="text" id="accno" name="accno" value="{{ accno }}" required><br><br>
+        <input type="text" id="accno" name="accno" onkeypress="return validateInput(event)" required><br><br>
         <label for="account_no">Destination Account Number:</label>
-        <input type="text" id="account_no" name="account_no" required><br><br>
+        <input type="text" id="account_no" name="account_no" onkeypress="return validateInput(event)" required><br><br>
+        <label for="pin">PIN:</label>
+        <input type="password" id="pin" name="pin" placeholder="Enter your Account PIN" onkeypress="return validateInput(event)" required><br><br>
         <label for="amount">Amount:</label>
         <input type="number" id="amount" name="amount" required><br><br>
         <button type="submit">Transfer</button>
