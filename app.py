@@ -1,22 +1,26 @@
 from flask import Flask, render_template, request, redirect
+import os
+from dotenv import load_dotenv
 import hashlib
 import psycopg2
 app = Flask(__name__)
 app.debug = True
 
-# Database connection details
-host = "localhost"
-database = "postgres"
-user = "postgres"
-password = "9841Selva@9841"
-port = 5432
+# Load environment variables from .env file
+load_dotenv()
+
+# Database configuration
+db_host = os.getenv('DB_HOST')
+db_name = os.getenv('DB_NAME')
+db_user = os.getenv('DB_USER')
+db_password = os.getenv('DB_PASSWORD')
+db_port = os.getenv('DB_PORT')
 
 # Connect to the PostgreSQL database
-conn = psycopg2.connect(host=host, database=database, user=user, password=password, port=port)
+conn = psycopg2.connect(host=db_host, database=db_name, user=db_user, password=db_password, port=db_port)
 cursor = conn.cursor()
 # Define the table name
-table_name = "account"
-
+table_name = os.getenv('TABLE_NAME')
 def check_account_exist_in_db(accno):
     cursor.execute("SELECT * FROM banking_app.{} WHERE account_no = %s".format(table_name), (accno,))
     account_info = cursor.fetchone()
