@@ -16,14 +16,12 @@ email_sender = "selvaganesh2608@outlook.com"
 email_password = "123456S@"
 smtp_server = "smtp-mail.outlook.com"
 smtp_port = 587  # Use the appropriate SMTP port for your email provider
-
-# Initialize SMTP server
-server = smtplib.SMTP(smtp_server, smtp_port)
-server.starttls()
-server.login(email_sender, email_password)
-
 # Helper function to send email
 def send_email(recipient_email, subject, body):
+    # Initialize SMTP server
+    server = smtplib.SMTP(smtp_server, smtp_port)
+    server.starttls()
+    server.login(email_sender, email_password)
     msg = MIMEMultipart()
     msg['From'] = email_sender
     msg['To'] = recipient_email
@@ -35,6 +33,8 @@ def send_email(recipient_email, subject, body):
         print("Email sent successfully!")
     except Exception as e:
         print(f"An error occurred while sending the email: {str(e)}")
+    finally:
+        server.quit()  # Close the SMTP server connection
 
 # Database configuration
 db_host = os.getenv('DB_HOST')
@@ -154,8 +154,6 @@ def withdraw():
         except Exception as e:
             # Handle the exception and show an error message
             return render_template('error.html', message=f'Error in withdrawing amount: {str(e)}')
-        finally:
-            server.quit()  # Close the SMTP server connection
 
     return render_template('withdraw.html')
 
