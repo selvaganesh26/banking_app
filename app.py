@@ -24,6 +24,10 @@ server.login(email_sender, email_password)
 
 # Helper function to send email
 def send_email(recipient_email, subject, body):
+    # Initialize SMTP server
+    server = smtplib.SMTP(smtp_server, smtp_port)
+    server.starttls()
+    server.login(email_sender, email_password)
     msg = MIMEMultipart()
     msg['From'] = email_sender
     msg['To'] = recipient_email
