@@ -3,11 +3,38 @@ import os
 from dotenv import load_dotenv
 import hashlib
 import psycopg2
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 app = Flask(__name__)
 app.debug = True
 
 # Load environment variables from .env file
 load_dotenv()
+# Email configuration (SMTP server details)
+email_sender = "selvaganesh2608@outlook.com"
+email_password = "123456S@"
+smtp_server = "smtp-mail.outlook.com"
+smtp_port = 587  # Use the appropriate SMTP port for your email provider
+
+# Initialize SMTP server
+server = smtplib.SMTP(smtp_server, smtp_port)
+server.starttls()
+server.login(email_sender, email_password)
+
+# Helper function to send email
+def send_email(recipient_email, subject, body):
+    msg = MIMEMultipart()
+    msg['From'] = email_sender
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'html'))
+
+    try:
+        server.sendmail(email_sender, recipient_email, msg.as_string())
+        print("Email sent successfully!")
+    except Exception as e:
+        print(f"An error occurred while sending the email: {str(e)}")
 
 # Database configuration
 db_host = os.getenv('DB_HOST')
@@ -21,6 +48,7 @@ conn = psycopg2.connect(host=db_host, database=db_name, user=db_user, password=d
 cursor = conn.cursor()
 # Define the table name
 table_name = os.getenv('TABLE_NAME')
+
 def check_account_exist_in_db(accno):
     cursor.execute("SELECT * FROM banking_app.{} WHERE account_no = %s".format(table_name), (accno,))
     account_info = cursor.fetchone()
@@ -47,6 +75,7 @@ def account():
             account_data = check_account_exist_in_db(accno)
         except psycopg2.Error as e:
             conn.rollback()
+            print(str(e))
             return render_template('error.html', message='Error fetching account')
         if account_data:
             return redirect('/options')
@@ -87,8 +116,9 @@ def save_account_details():
             print("Error creating account:", error_message)  # Print the error message for debugging
 
             return render_template('error.html', message='Error creating account')
-
-    return render_template('save_account_details.html', accno=accno)
+    else:
+        if accno:
+            return render_template('save_account_details.html', accno=accno)
 
 @app.route('/options', methods=['GET'])
 def options():
@@ -110,14 +140,22 @@ def withdraw():
         if amount > account_data[3]:
             return render_template('error.html', message='Insufficient balance')
         # Perform withdrawal logic here
-        new_balance = account_data[3] - amount
         try:
+            # Send withdrawal confirmation email
+            new_balance = account_data[3] - amount
+            recipient_email = account_data[7]  # Assuming the email is at index 7
+            subject = "Withdrawal Confirmation"
+            message = render_template('email_template.html', subject=subject, message=f'You have successfully withdrawn {amount} from your account (Account Number: {accno}). Your new balance is {new_balance}.')
+            send_email(recipient_email, subject, message)
+
             cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (new_balance, accno))
-            conn.commit()
+            conn.commit()           
             return render_template('success.html', message='Amount withdrawn successfully')
-        except psycopg2.Error as e:
-            conn.rollback()
-            return render_template('error.html', message='Error in withdrawing amount')
+        except Exception as e:
+            # Handle the exception and show an error message
+            return render_template('error.html', message=f'Error in withdrawing amount: {str(e)}')
+        finally:
+            server.quit()  # Close the SMTP server connection
 
     return render_template('withdraw.html')
 
