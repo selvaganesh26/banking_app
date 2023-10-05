@@ -12,8 +12,8 @@ app.debug = True
 # Load environment variables from .env file
 load_dotenv()
 # Email configuration (SMTP server details)
-email_sender = "selvaganesh2608@outlook.com"
-email_password = "123456S@"
+email_sender = "selvaganeshmahadevan@gmail.com"
+email_password = "9841Selva@9841"
 smtp_server = "smtp-mail.outlook.com"
 smtp_port = 587  # Use the appropriate SMTP port for your email provider
 # Helper function to send email
@@ -145,7 +145,7 @@ def withdraw():
             new_balance = account_data[3] - amount
             recipient_email = account_data[7]  # Assuming the email is at index 7
             subject = "Withdrawal Confirmation"
-            message = render_template('email_template.html', subject=subject, message=f'You have successfully withdrawn {amount} from your account (Account Number: {accno}). Your new balance is {new_balance}.')
+            message = render_template('email_template.html', subject=subject, message=f'You have successfully withdrawn ₹{amount} from your account (Account Number: {accno}). Your new balance is ₹{new_balance}.')
             send_email(recipient_email, subject, message)
 
             cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (new_balance, accno))
@@ -153,6 +153,7 @@ def withdraw():
             return render_template('success.html', message='Amount withdrawn successfully')
         except Exception as e:
             # Handle the exception and show an error message
+            conn.rollback()
             return render_template('error.html', message=f'Error in withdrawing amount: {str(e)}')
 
     return render_template('withdraw.html')
@@ -171,12 +172,18 @@ def deposit():
         if not validate_pin(account_data, pin):  # Check the PIN
             return render_template('error.html', message='Invalid PIN')
         # Performed deposit logic here
-        new_balance = account_data[3] + amount
+        
         try:
+            new_balance = account_data[3] + amount
+            recipient_email = account_data[7]  # Assuming the email is at index 7
+            subject = "Deposit Confirmation"
+            message = render_template('email_template.html', subject=subject, message=f'You have successfully deposited ₹{amount} into your account (Account Number: {accno}). Your new balance is ₹{new_balance}.')
+            send_email(recipient_email, subject, message)
             cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (new_balance, accno))
             conn.commit()
             return render_template('success.html', message='Amount deposited successfully')
-        except psycopg2.Error as e:
+        except Exception as e:
+            # Handle the exception and show an error message
             conn.rollback()
             return render_template('error.html', message='Error in depositing amount')
     return render_template('deposit.html')
@@ -207,10 +214,21 @@ def transfer():
             cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (debit_in_accno, accno))
             cursor.execute("""UPDATE banking_app.{} SET total_balance = %s WHERE account_no = %s""".format(table_name), (credit_in_account_no, account_no))
             conn.commit()
+            # Send transfer confirmation emails
+            sender_email = account_data[7]  # Email of the sender
+            recipient_email = destination_account_data[7]  # Email of the recipient
+            sender_subject = "Transfer Confirmation"
+            sender_message = render_template('email_template.html', subject=sender_subject, message=f'You have successfully transferred {amount} to Account Number: {account_no}. Your new balance is ₹{debit_in_accno}.')
+            send_email(sender_email, sender_subject, sender_message)
+
+            recipient_subject = "Incoming Transfer"
+            recipient_message = render_template('email_template.html', subject=recipient_subject, message=f'You have received a transfer of ₹{amount} from Account Number: {accno}. Your new balance is ₹{credit_in_account_no}.')
+            send_email(recipient_email, recipient_subject, recipient_message)
+
             return render_template('success.html', message='Amount transferred successfully')
-        except psycopg2.Error as e:
+        except Exception as e:
             conn.rollback()
-            return render_template('error.html', message='Error in transferring amount')
+            return render_template('error.html', message=f'Error in transferring amount: {str(e)}')
     return render_template('transfer.html')
 
 @app.route('/balance', methods=['GET', 'POST'])
@@ -248,6 +266,13 @@ def pin_change():
         try:
             cursor.execute("""UPDATE banking_app.{} SET pin = %s WHERE account_no = %s""".format(table_name), (new_hashed_pin, accno))
             conn.commit()
+            recipient_email = account_data[7]
+            subject = 'PIN Change Confirmation'
+            # Updated PIN change confirmation message
+            body = "Your PIN has been successfully changed.<br>If you did not initiate this change, please contact our support team immediately.<br>Thank you for choosing our banking services."
+            # Pass the updated message to render_template
+            message = render_template('email_template.html', subject=subject, message=body)
+            send_email(recipient_email, subject, message)
             return render_template('success.html', message='PIN changed successfully')
         except psycopg2.Error as e:
             conn.rollback()

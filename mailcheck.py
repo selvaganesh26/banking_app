@@ -3,8 +3,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 # Email configuration
-sender_email = "selvaganesh2608@outlook.com"
-sender_password = "123456S@"
+sender_email = "selvaganeshmahadevan@gmail.com"
+sender_password = "9841Selva@9841"
 recipient_email = "selvaganeshmahadevan@gmail.com"
 subject = "Message confirmation"
 message = "hello daa losu"
